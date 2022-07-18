@@ -1,0 +1,7 @@
+####################################################################
+                    List any new changes made here 
+####################################################################
+
+18.07.22
+- Modified return value of device_info (CAN endpoint) to contain unique ID from serial number
+- Added launch.json configuration based on local setup on linux
