@@ -2,18 +2,26 @@
 #include <string.h>
 #include <src/system/system.h>
 #include <src/encoder/hall.h>
+#include <src/ssp/ssp_func.h>
+#include <src/encoder/ma7xx.h>
+#include <src/utils/utils.h>
 
-#define AIO6789_IO_MODE                 0x00
-#define AIO_INPUT                       0x00
+#define MA330_NPP_REG   0x7
+#define MA330_NPP       0b11000000 // Emulate 7 pole pairs
+#define MA330_NPP_CMD (MA330_NPP_REG << 8 | MA330_NPP)
 
 static HallConfig config = { 0 };
 static HallState state = { 0 };
 
 void hall_init(void)
 {
-    pac5xxx_tile_register_write(ADDR_CFGAIO7, AIO6789_IO_MODE | AIO_INPUT);
-    pac5xxx_tile_register_write(ADDR_CFGAIO8, AIO6789_IO_MODE | AIO_INPUT);
-    pac5xxx_tile_register_write(ADDR_CFGAIO9, AIO6789_IO_MODE | AIO_INPUT);
+    PAC55XX_GPIOF->MODE.P2 = IO_HIGH_IMPEDENCE_INPUT;
+    PAC55XX_GPIOF->MODE.P3 = IO_HIGH_IMPEDENCE_INPUT;
+    PAC55XX_GPIOF->MODE.P4 = IO_HIGH_IMPEDENCE_INPUT;
+
+    ssp_init(PRIMARY_ENCODER_SSP_PORT, SSP_MS_MASTER, 0, 0); // Mode 0
+    delay_us(16000); // ensure 16ms sensor startup time as per the datasheet
+    ma7xx_write_reg(MA330_NPP_REG, MA330_NPP); // set num pole pairs
 }
 
 PAC5XXX_RAMFUNC int16_t hall_get_angle(void)
@@ -23,12 +31,8 @@ PAC5XXX_RAMFUNC int16_t hall_get_angle(void)
 
 PAC5XXX_RAMFUNC void hall_update_angle(bool check_error)
 {
-    const uint8_t sector = (pac5xxx_tile_register_read(ADDR_DINSIG1) >> 1) & 0x07;
-    state.sector = sector;
-    if (check_error)
-    {
-    	// add_error_flag(ERROR_ENCODER_READING_UNSTABLE);
-    }
+    state.sector = (PAC55XX_GPIOF->IN.w >> 2) & 0b111;
+    // Could check sector delta and set an ERROR_ENCODER_READING_UNSTABLE if delta (taking into account wrapping) too large
     state.angle = config.sector_map[state.sector];
 }
 
